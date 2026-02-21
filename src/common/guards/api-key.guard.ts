@@ -32,6 +32,10 @@ export class ApiKeyGuard implements CanActivate {
       this.logger.warn('Authentication failed: No X-API-Key header provided');
       throw new UnauthorizedException('API Key required. Provide X-API-Key header.');
     }
+
+    if(apiKey !== process.env.API_KEY) {
+      throw new UnauthorizedException('Invalid API Key. Access denied.');
+    }
     // Attach auth info to request for downstream use
     request.user = {
       authType: 'api-key',
