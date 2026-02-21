@@ -33,7 +33,7 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
         password: process.env.DB_PASSWORD || '',
         database: process.env.DB_NAME || 'integration_hub',
         entities: [ApiTransactionLog],
-        synchronize: true, // Set to false in production
+        synchronize: false, // Set to false in production
         logging: process.env.NODE_ENV === 'development',
       }),
     }),
