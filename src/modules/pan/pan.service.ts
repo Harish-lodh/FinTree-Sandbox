@@ -1,167 +1,32 @@
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
-import FormData from 'form-data';
 import { v4 as uuidv4 } from 'uuid';
-import { GoogleVisionService } from '../ocr/google-vision.service';
-import * as fs from 'fs';
-import { parsePanText } from '../../utils/pan-parser.util';
-
-// Multer file type
-interface MulterFile {
-  fieldname: string;
-  originalname: string;
-  encoding: string;
-  mimetype: string;
-  buffer: Buffer;
-  size: number;
-  path?: string;
-}
 
 @Injectable()
-export class PanVerificationService {
-  private readonly logger = new Logger(PanVerificationService.name);
+export class PanService {
+  private readonly logger = new Logger(PanService.name);
 
   private readonly zoopUrl: string;
   private readonly zoopApiKey: string;
   private readonly zoopAppId: string;
 
   private readonly finanalyzUrl: string;
-  private readonly finanalyzOcrUrl: string;
   private readonly finanalyzKey: string;
 
   constructor(
     private readonly http: HttpService,
-    private readonly googleVision: GoogleVisionService,
   ) {
     this.zoopUrl = process.env.ZOOP_PAN_API_URL ?? '';
     this.zoopApiKey = process.env.ZOOP_API_KEY ?? '';
     this.zoopAppId = process.env.ZOOP_APP_ID ?? '';
 
     this.finanalyzUrl = process.env.FINANALYZ_PAN_URL ?? '';
-    this.finanalyzOcrUrl = process.env.FINANALYZ_OCR_URL ?? '';
     this.finanalyzKey = process.env.FINANALYZ_X_API_KEY ?? '';
 
     // Log config status once at startup
     this.logger.log(`Zoop config: url=${!!this.zoopUrl}, key=${!!this.zoopApiKey}, app=${!!this.zoopAppId}`);
-    this.logger.log(`Finanalyz config: url=${!!this.finanalyzUrl}, ocr=${!!this.finanalyzOcrUrl}, key=${!!this.finanalyzKey}`);
-  }
-
-  // ───────────────────────────────────────────────
-  // Primary OCR – Google Vision → Finanalyz fallback
-  // ───────────────────────────────────────────────
-  async ocrPan(file: MulterFile): Promise<{
-    success: boolean;
-    raw: any;
-  }> {
-    if (!file) throw new BadRequestException('PAN image file is required');
-
-    let imageBuffer: Buffer;
-    try {
-      imageBuffer = file.buffer ?? (file.path ? await fs.promises.readFile(file.path) : null);
-      if (!imageBuffer) throw new Error('No buffer or path available');
-    } catch (e) {
-      this.logger.error(`Failed to read PAN image: ${e.message}`);
-      throw new BadRequestException('Invalid or unreadable PAN image');
-    }
-
-    this.logger.debug(`OCR started | size: ${imageBuffer.length} bytes | filename: ${file.originalname}`);
-
-    // ── Google Vision ─────────────────────────────────────
-    this.logger.log('Attempting OCR with Google Vision...');
-    try {
-      const lines = await this.googleVision.extractTextFromImage(imageBuffer);
-      const fullText = lines.join('\n').trim();
-
-      if (fullText.length === 0) {
-        this.logger.warn('Google Vision returned empty text');
-      } else {
-        this.logger.debug(`Google Vision extracted (${lines.length} lines): ${fullText.substring(0, 200)}...`);
-      }
-
-      const isPaymentDoc =
-        /payment|payments|paytm|upi/i.test(fullText);
-
-      const { panNumber, name, dob, fatherName } = parsePanText(lines);
-
-      if (panNumber && !isPaymentDoc) {
-        this.logger.log(`Google Vision success → PAN: ${panNumber}, Name: ${name}`);
-        return {
-          success: true,
-          raw: {
-            provider: 'GOOGLE_VISION',
-            response: {
-              data: {
-                pan_number: panNumber,
-                name: name,
-                dob: dob,
-                father_name: fatherName,
-              },
-              doc_Name: 'PAN Card',
-              message: 'success',
-            },
-          },
-        };
-      }
-
-      this.logger.warn(
-        `Google Vision fallback trigger: ${panNumber ? 'Payment doc detected' : 'No valid PAN found'}`,
-      );
-    } catch (e) {
-      this.logger.error(`Google Vision OCR failed: ${e.message}`);
-    }
-
-    // ── Finanalyz OCR fallback ─────────────────────────────
-    this.logger.log('Falling back to Finanalyz OCR...');
-
-    if (!this.finanalyzOcrUrl || !this.finanalyzKey) {
-      this.logger.error('Finanalyz OCR not configured');
-      throw new BadRequestException('OCR service not available');
-    }
-
-    const form = new FormData();
-    form.append('file', imageBuffer, {
-      filename: file.originalname || 'pan.jpg',
-      contentType: file.mimetype || 'image/jpeg',
-    });
-
-    try {
-      const { data } = await firstValueFrom(
-        this.http.post(this.finanalyzOcrUrl, form, {
-          headers: {
-            ...form.getHeaders(),
-            accept: '*/*',
-            XApiKey: this.finanalyzKey,
-          },
-          validateStatus: () => true,
-        }),
-      );
-
-      this.logger.debug(`Finanalyz OCR raw: ${JSON.stringify(data, null, 2).substring(0, 400)}...`);
-
-      if (data?.data) {
-        const pan = data.data.pan_number ?? null;
-        if (pan) {
-          this.logger.log(`Finanalyz OCR success → PAN: ${pan}`);
-          return {
-            success: true,
-            raw: { provider: 'FINANALYZ_OCR', response: data },
-          };
-        }
-      }
-
-      this.logger.warn('Finanalyz OCR did not return valid PAN');
-      return {
-        success: false,
-        raw: { provider: 'FINANALYZ_OCR', response: data },
-      };
-    } catch (e) {
-      this.logger.error(`Finanalyz OCR request failed: ${e.message}`);
-      return {
-        success: false,
-        raw: { provider: 'FINANALYZ_OCR', error: e.message },
-      };
-    }
+    this.logger.log(`Finanalyz config: url=${!!this.finanalyzUrl}, key=${!!this.finanalyzKey}`);
   }
 
   // ───────────────────────────────────────────────

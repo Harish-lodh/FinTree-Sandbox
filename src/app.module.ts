@@ -6,12 +6,14 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ApiTransactionLog } from './modules/api-transaction-logs/entities/api-transaction-log.entity';
 import { ApiTransactionLogsModule } from './modules/api-transaction-logs/api-transaction-logs.module';
-import { PanVerificationModule } from './modules/pan-verification/pan-verification.module';
+import { PanModule } from './modules/pan/pan.module';
 import { KycModule } from './modules/kyc/kyc.module';
 import { AadhaarModule } from './modules/aadhaar/aadhaar.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { EsignModule } from './modules/esign/esign.module';
 import { HealthModule } from './modules/health/health.module';
+import { OcrModule } from './modules/ocr/ocr.module';
+import { GstModule } from './modules/gst/gst.module';
 import { ApiKeyGuard } from './common/guards/api-key.guard';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 
@@ -41,12 +43,14 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
     // Feature Modules
 
     ApiTransactionLogsModule,
-    PanVerificationModule,
+    PanModule,
     KycModule,
     AadhaarModule,
     PaymentsModule,
     EsignModule,
     HealthModule,
+    OcrModule,
+    GstModule,
   ],
   controllers: [AppController],
   providers: [

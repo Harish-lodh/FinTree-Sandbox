@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { ImageAnnotatorClient } from '@google-cloud/vision';
 import * as path from 'path';
 
@@ -7,9 +8,9 @@ export class GoogleVisionService {
   private readonly logger = new Logger(GoogleVisionService.name);
   private readonly client: ImageAnnotatorClient;
 
-  constructor() {
+  constructor(private readonly config: ConfigService) {
     // Use the service account credentials from the config file
-    const keyFilename = path.join(process.cwd(), 'config', 'gcloud-key.json');
+    const keyFilename = path.join(process.cwd(), 'config', this.config.get<string>('GCLOUD_KEY_FILE') || 'gcloud-key.json');
     this.client = new ImageAnnotatorClient({ keyFilename });
   }
 

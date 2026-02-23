@@ -46,13 +46,18 @@ export class ResponseInterceptor<T> implements NestInterceptor<T, Response<T>> {
         const statusCode = response.statusCode;
         const success = statusCode >= 200 && statusCode < 300;
 
-        // Build standardized response
-        const responseBody = {
+        // Build standardized response - preserve provider field if present
+        const responseBody: any = {
           success,
           message: data?.message || (success ? 'Operation successful' : 'Operation failed'),
           data: data?.data || data || null,
           error: data?.error || null,
         };
+
+        // Preserve provider if it exists in the original response
+        if (data?.provider) {
+          responseBody.provider = data.provider;
+        }
 
         return responseBody;
       }),
