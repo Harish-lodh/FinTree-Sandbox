@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  Logger,
-  BadRequestException,
-} from "@nestjs/common";
+import { Injectable, Logger, BadRequestException } from "@nestjs/common";
 import { HttpService } from "@nestjs/axios";
 import { ConfigService } from "@nestjs/config";
 import { firstValueFrom } from "rxjs";
@@ -48,7 +44,7 @@ export class OcrService {
 
   async processCheque(dto: ChequeOcrDto): Promise<ChequeOcrResponse> {
     const { imageUrl, clientRefId, accountHolderName, isCompleteImage } = dto;
-
+    console.log(imageUrl);
     if (!imageUrl || (!imageUrl.buffer && !imageUrl.path)) {
       throw new BadRequestException("Valid image file is required");
     }
@@ -65,7 +61,20 @@ export class OcrService {
       imageBuffer = fs.readFileSync(imageUrl.path);
     }
 
-    const mimeType = imageUrl.mimetype || "image/jpeg";
+    const mimeType = imageUrl.mimetype || "image/jpeg"; //alow for pdf allso
+
+    // Validate image buffer is not empty and has minimum size
+    if (!imageBuffer || imageBuffer.length < 100) {
+      throw new BadRequestException("Invalid image: file is too small or empty");
+    }
+
+    // Validate image header to ensure it's actually an image
+    const imageHeader = imageBuffer.slice(0, 8);
+    const isValidImage = this.isValidImageBuffer(imageHeader, mimeType);
+    if (!isValidImage) {
+      this.logger.warn(`Invalid image buffer detected. MIME: ${mimeType}, Size: ${imageBuffer.length}`);
+      throw new BadRequestException("Not a valid image file");
+    }
 
     try {
       if (
@@ -104,13 +113,20 @@ export class OcrService {
     try {
       const formData = new FormData();
 
-      // ✅ MUST be imageUrl
-      formData.append("imageUrl", imageBuffer, {
-        filename: "cheque.jpg",
-        contentType: imageMimeType,
-      });
+      // Convert image buffer to base64 string as per Digitap API requirements
+      // API accepts: public URL OR content OR Base64 encoded string
+      const base64Image = imageBuffer.toString('base64');
+      
+      // Determine if it's PDF or image - use appropriate field name
+      const isPdf = imageMimeType === 'application/pdf';
+      
+      if (isPdf) {
+        formData.append('pdf', base64Image);
+      } else {
+        formData.append('imageUrl', base64Image);
+      }
 
-      formData.append("clientRefId", options.clientRefId);
+      formData.append('clientRefId', options.clientRefId);
 
       // ✅ MUST be yes / no
       formData.append(
@@ -122,7 +138,9 @@ export class OcrService {
         formData.append("accountHolderName", options.accountHolderName);
       }
 
-      const authString = Buffer.from(`${this.digitapClientId}:${this.digitapClientSecret}`).toString('base64');
+      const authString = Buffer.from(
+        `${this.digitapClientId}:${this.digitapClientSecret}`,
+      ).toString("base64");
 
       const response = await firstValueFrom(
         this.httpService.post(
@@ -139,7 +157,7 @@ export class OcrService {
           },
         ),
       );
-      console.log("response-->",response)
+      console.log("response-->", response);
       const data = response.data;
 
       // If Digitap returns status === 'failure', return the response directly as-is
@@ -163,7 +181,7 @@ export class OcrService {
         "Digitap Cheque OCR error",
         error?.response?.data || error.message,
       );
-      console.log(error.response)
+      console.log(error.response);
       // If Digitap returned a response with status === 'failure', return it directly
       if (error?.response?.data?.status === "failure") {
         const data = error.response.data;
@@ -226,125 +244,180 @@ export class OcrService {
     return result;
   }
 
-  /* ========================= PAN OCR ========================= */
+  /**
+   * Validate image buffer based on magic bytes
+   */
+  private isValidImageBuffer(header: Buffer, mimeType: string): boolean {
+    // JPEG: FF D8 FF
+    // PNG: 89 50 4E 47 0D 0A 1A 0A
+    // PDF: 25 50 44 46 (%
+    // WebP: 52 49 46 46 ... 57 45 42 50 (RIFF....WEBP)
+    // BMP: 42 4D (BM)
+    // TIFF: 49 49 2A 00 or 4D 4D 00 2A
 
+    if (mimeType === "application/pdf") {
+      return header[0] === 0x25 && header[1] === 0x50 && header[2] === 0x44 && header[3] === 0x46;
+    }
+
+    if (mimeType === "image/jpeg" || mimeType === "image/jpg") {
+      return header[0] === 0xff && header[1] === 0xd8 && header[2] === 0xff;
+    }
+
+    if (mimeType === "image/png") {
+      return (
+        header[0] === 0x89 &&
+        header[1] === 0x50 &&
+        header[2] === 0x4e &&
+        header[3] === 0x47
+      );
+    }
+
+    if (mimeType === "image/webp") {
+      return (
+        header[0] === 0x52 &&
+        header[1] === 0x49 &&
+        header[2] === 0x46 &&
+        header[3] === 0x46 &&
+        header[8] === 0x57 &&
+        header[9] === 0x45 &&
+        header[10] === 0x42 &&
+        header[11] === 0x50
+      );
+    }
+
+    if (mimeType === "image/bmp") {
+      return header[0] === 0x42 && header[1] === 0x4d;
+    }
+
+    if (mimeType === "image/tiff") {
+      return (
+        (header[0] === 0x49 && header[1] === 0x49 && header[2] === 0x2a && header[3] === 0x00) ||
+        (header[0] === 0x4d && header[1] === 0x4d && header[2] === 0x00 && header[3] === 0x2a)
+      );
+    }
+
+    // For unknown types, do basic validation
+    return header[0] !== 0x00 && header[1] !== 0x00;
+  }
+
+  /* ========================= PAN OCR ========================= */
 
   /* ========================= PAN OCR WITH FALLBACK ========================= */
 
-async ocrPan(file: MulterFile): Promise<any> {
-  if (!file) throw new BadRequestException('PAN image file is required');
+  async ocrPan(file: MulterFile): Promise<any> {
+    if (!file) throw new BadRequestException("PAN image file is required");
 
-  let imageBuffer: Buffer;
-  try {
-    imageBuffer =
-      file.buffer ??
-      (file.path ? await fs.promises.readFile(file.path) : null);
+    let imageBuffer: Buffer;
+    try {
+      imageBuffer =
+        file.buffer ??
+        (file.path ? await fs.promises.readFile(file.path) : null);
 
-    if (!imageBuffer) throw new Error('No buffer or path available');
-  } catch (e) {
-    this.logger.error(`Failed to read PAN image: ${e.message}`);
-    throw new BadRequestException('Invalid or unreadable PAN image');
-  }
+      if (!imageBuffer) throw new Error("No buffer or path available");
+    } catch (e) {
+      this.logger.error(`Failed to read PAN image: ${e.message}`);
+      throw new BadRequestException("Invalid or unreadable PAN image");
+    }
 
-  this.logger.debug(
-    `OCR started | size: ${imageBuffer.length} | file: ${file.originalname}`,
-  );
+    this.logger.debug(
+      `OCR started | size: ${imageBuffer.length} | file: ${file.originalname}`,
+    );
 
-  /* ───────────── Finanalyz OCR (PRIMARY) ───────────── */
+    /* ───────────── Finanalyz OCR (PRIMARY) ───────────── */
 
-  this.logger.log('Attempting Finanalyz OCR...');
+    this.logger.log("Attempting Finanalyz OCR...");
 
-  const finanalyzOcrUrl = this.config.get<string>('FINANALYZ_OCR_URL');
-  const finanalyzKey = this.config.get<string>('FINANALYZ_X_API_KEY');
+    const finanalyzOcrUrl = this.config.get<string>("FINANALYZ_OCR_URL");
+    const finanalyzKey = this.config.get<string>("FINANALYZ_X_API_KEY");
 
-  if (finanalyzOcrUrl && finanalyzKey) {
-    const form = new FormData();
-    form.append('file', imageBuffer, {
-      filename: file.originalname || 'pan.jpg',
-      contentType: file.mimetype || 'image/jpeg',
-    });
+    if (finanalyzOcrUrl && finanalyzKey) {
+      const form = new FormData();
+      form.append("file", imageBuffer, {
+        filename: file.originalname || "pan.jpg",
+        contentType: file.mimetype || "image/jpeg",
+      });
+
+      try {
+        const { data } = await firstValueFrom(
+          this.httpService.post(finanalyzOcrUrl, form, {
+            headers: {
+              ...form.getHeaders(),
+              XApiKey: finanalyzKey,
+              accept: "*/*",
+            },
+            validateStatus: () => true,
+          }),
+        );
+
+        const pan = data?.data?.pan_number;
+
+        if (pan) {
+          this.logger.log(`Finanalyz OCR success → PAN: ${pan}`);
+          return {
+            provider: "FINANALYZ_OCR",
+            success: true,
+            data: {
+              pan_number: pan,
+              name: data.data.name || "",
+              dob: data.data.dob || "",
+              father_name: data.data.father_name || "",
+            },
+          };
+        }
+
+        this.logger.warn("Finanalyz OCR did not detect PAN");
+      } catch (e) {
+        this.logger.error(`Finanalyz OCR failed: ${e.message}`);
+      }
+    } else {
+      this.logger.warn("Finanalyz OCR not configured, skipping");
+    }
+
+    /* ───────────── Google Vision OCR (FALLBACK) ───────────── */
+
+    this.logger.log("Falling back to Google Vision OCR...");
 
     try {
-      const { data } = await firstValueFrom(
-        this.httpService.post(finanalyzOcrUrl, form, {
-          headers: {
-            ...form.getHeaders(),
-            XApiKey: finanalyzKey,
-            accept: '*/*',
-          },
-          validateStatus: () => true,
-        }),
-      );
+      const lines =
+        await this.googleVisionService.extractTextFromImage(imageBuffer);
 
-      const pan = data?.data?.pan_number;
+      const fullText = lines.join("\n").trim();
+      const isPaymentDoc = /payment|payments|paytm|upi/i.test(fullText);
 
-      if (pan) {
-        this.logger.log(`Finanalyz OCR success → PAN: ${pan}`);
+      const { panNumber, name, dob, fatherName } = parsePanText(lines);
+
+      if (panNumber && !isPaymentDoc) {
+        this.logger.log(`Google Vision OCR success → PAN: ${panNumber}`);
+
         return {
-          provider: 'FINANALYZ_OCR',
+          provider: "GOOGLE_VISION",
           success: true,
           data: {
-            pan_number: pan,
-            name: data.data.name || '',
-            dob: data.data.dob || '',
-            father_name: data.data.father_name || '',
+            pan_number: panNumber,
+            name: name || "",
+            dob: dob || "",
+            father_name: fatherName || "",
           },
         };
       }
 
-      this.logger.warn('Finanalyz OCR did not detect PAN');
+      this.logger.warn("Google Vision OCR did not detect PAN");
     } catch (e) {
-      this.logger.error(`Finanalyz OCR failed: ${e.message}`);
-    }
-  } else {
-    this.logger.warn('Finanalyz OCR not configured, skipping');
-  }
-
-  /* ───────────── Google Vision OCR (FALLBACK) ───────────── */
-
-  this.logger.log('Falling back to Google Vision OCR...');
-
-  try {
-    const lines =
-      await this.googleVisionService.extractTextFromImage(imageBuffer);
-
-    const fullText = lines.join('\n').trim();
-    const isPaymentDoc = /payment|payments|paytm|upi/i.test(fullText);
-
-    const { panNumber, name, dob, fatherName } = parsePanText(lines);
-
-    if (panNumber && !isPaymentDoc) {
-      this.logger.log(`Google Vision OCR success → PAN: ${panNumber}`);
-
-      return {
-        provider: 'GOOGLE_VISION',
-        success: true,
-        data: {
-          pan_number: panNumber,
-          name: name || '',
-          dob: dob || '',
-          father_name: fatherName || '',
-        },
-      };
+      this.logger.error(`Google Vision OCR failed: ${e.message}`);
     }
 
-    this.logger.warn('Google Vision OCR did not detect PAN');
-  } catch (e) {
-    this.logger.error(`Google Vision OCR failed: ${e.message}`);
+    /* ───────────── FINAL FAILURE ───────────── */
+
+    return {
+      provider: "NONE",
+      success: false,
+      message: "PAN could not be extracted from image",
+      data: {
+        pan_number: "",
+        name: "",
+        dob: "",
+        father_name: "",
+      },
+    };
   }
-
-  /* ───────────── FINAL FAILURE ───────────── */
-
-  return {
-    provider: 'NONE',
-    success: false,
-    message: 'PAN could not be extracted from image',
-    data: {
-      pan_number: '',
-      name: '',
-      dob: '',
-      father_name: '',
-    },
-  };
-}
 }

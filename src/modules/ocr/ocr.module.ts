@@ -26,14 +26,14 @@ import { ConfigModule } from '@nestjs/config';
       limits: {
         fileSize: 10 * 1024 * 1024, // 10MB max file size
       },
-      fileFilter: (req, file, callback) => {
-        const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
-        if (allowedMimeTypes.includes(file.mimetype)) {
-          callback(null, true);
-        } else {
-          callback(new Error('Invalid file type. Only JPEG, PNG, JPG, and WebP images are allowed.'), false);
-        }
-      },
+      // fileFilter: (req, file, callback) => {
+      //   const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+      //   if (allowedMimeTypes.includes(file.mimetype)) {
+      //     callback(null, true);
+      //   } else {
+      //     callback(new Error('Invalid file type. Only JPEG, PNG, JPG, and WebP images are allowed.'), false);
+      //   }
+      // },
     }),
   ],
   controllers: [OcrController],

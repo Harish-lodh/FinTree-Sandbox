@@ -3,4 +3,5 @@ dist
 .env
 *.log
 config/gcloud-key.json
+uploads
 

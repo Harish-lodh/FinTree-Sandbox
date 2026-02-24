@@ -77,12 +77,12 @@ export class OcrController {
     }
 
     // Validate file type
-    const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
-    if (!allowedMimeTypes.includes(file.mimetype)) {
-      throw new BadRequestException(  
-        `Invalid file type. Allowed: ${allowedMimeTypes.join(', ')}. Received: ${file.mimetype}`,
-      );
-    }
+    // const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+    // if (!allowedMimeTypes.includes(file.mimetype)) {
+    //   throw new BadRequestException(  
+    //     `Invalid file type. Allowed: ${allowedMimeTypes.join(', ')}. Received: ${file.mimetype}`,
+    //   );
+    // }
 
     return this.ocrService.processCheque({
       imageUrl: file,
