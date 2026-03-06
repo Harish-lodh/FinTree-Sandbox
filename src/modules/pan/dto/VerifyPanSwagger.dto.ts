@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, ApiHideProperty } from '@nestjs/swagger';
 import { IsString, IsOptional, Matches } from 'class-validator';
 
 export class VerifyPanDto {
@@ -8,9 +8,7 @@ export class VerifyPanDto {
     description: 'PAN Card Number',
   })
   @IsString()
-  @Matches(/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/, {
-    message: 'Invalid PAN format',
-  })
+  @Matches(/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/)
   panNumber: string;
 
   @ApiPropertyOptional({
@@ -21,10 +19,7 @@ export class VerifyPanDto {
   @IsString()
   name?: string;
 
-  @ApiPropertyOptional({
-    example: '1995-08-15',
-    description: 'Date of birth (YYYY-MM-DD)',
-  })
+  @ApiHideProperty()
   @IsOptional()
   @IsString()
   dob?: string;
