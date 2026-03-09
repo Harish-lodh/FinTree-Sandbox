@@ -55,7 +55,7 @@ export class OcrController {
         imageUrl: { type: 'string', format: 'binary', description: 'Cheque image file' },
         clientRefId: { type: 'string', description: 'Client reference ID (required)' },
         accountHolderName: { type: 'string', description: 'Account holder name (required)' },
-        isCompleteImage: { type: 'string', enum: ['yes', 'no'], description: 'Is complete image (required)' },
+        // isCompleteImage: { type: 'string', enum: ['yes', 'no'], description: 'Is complete image (required)' },
       },
       required: ['imageUrl', 'clientRefId', 'accountHolderName', 'isCompleteImage'],
     },
@@ -88,7 +88,6 @@ export class OcrController {
       imageUrl: file,
       clientRefId: body.clientRefId,
       accountHolderName: body.accountHolderName,
-      isCompleteImage: body.isCompleteImage,
     });
   }
 

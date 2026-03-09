@@ -43,16 +43,12 @@ export class OcrService {
   /* ========================= CHEQUE OCR ========================= */
 
   async processCheque(dto: ChequeOcrDto): Promise<ChequeOcrResponse> {
-    const { imageUrl, clientRefId, accountHolderName, isCompleteImage } = dto;
+    const { imageUrl, clientRefId, accountHolderName } = dto;
     console.log(imageUrl);
     if (!imageUrl || (!imageUrl.buffer && !imageUrl.path)) {
       throw new BadRequestException("Valid image file is required");
     }
 
-    const normalizedIsCompleteImage =
-      isCompleteImage === "yes" ||
-      isCompleteImage === "true" ||
-      isCompleteImage === true;
 
     let imageBuffer: Buffer;
     if (imageUrl.buffer) {
@@ -87,7 +83,7 @@ export class OcrService {
           {
             clientRefId,
             accountHolderName,
-            isCompleteImage: normalizedIsCompleteImage,
+            isCompleteImage: true,
           },
           mimeType,
         );
