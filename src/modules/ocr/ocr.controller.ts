@@ -57,7 +57,7 @@ export class OcrController {
         accountHolderName: { type: 'string', description: 'Account holder name (required)' },
         // isCompleteImage: { type: 'string', enum: ['yes', 'no'], description: 'Is complete image (required)' },
       },
-      required: ['imageUrl', 'clientRefId', 'accountHolderName', 'isCompleteImage'],
+      required: ['imageUrl', 'clientRefId', 'accountHolderName'],
     },
     required: true,
   })

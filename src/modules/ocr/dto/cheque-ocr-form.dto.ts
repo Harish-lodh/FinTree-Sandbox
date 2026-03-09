@@ -28,14 +28,4 @@ export class ChequeOcrFormDto {
   @IsNotEmpty({ message: 'Account holder name is required' })
   accountHolderName: string;
 
-  @ApiProperty({ 
-    enum: ['yes', 'no'], 
-    example: 'yes',
-    description: 'Indicates whether the cheque image is complete or partial',
-    required: true 
-  })
-  @IsString()
-  @IsNotEmpty({ message: 'isCompleteImage is required' })
-  @IsEnum(['yes', 'no'], { message: 'isCompleteImage must be either "yes" or "no"' })
-  isCompleteImage: string;
 }
