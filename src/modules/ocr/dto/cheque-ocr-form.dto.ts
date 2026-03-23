@@ -25,6 +25,7 @@ export class ChequeOcrFormDto {
     required: true 
   })
   @IsString()
+  @IsOptional()
   @IsNotEmpty({ message: 'Account holder name is required' })
   accountHolderName: string;
 
