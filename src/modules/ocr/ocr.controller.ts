@@ -6,6 +6,7 @@ import {
   UploadedFile,
   BadRequestException,
   UseGuards,
+  Logger,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
@@ -16,6 +17,7 @@ import {
   ApiBody,
   ApiSecurity,
 } from '@nestjs/swagger';
+import * as fs from 'fs';
 import { OcrService } from './ocr.service';
 import { ChequeOcrResponse } from './dto/cheque-ocr.dto';
 import { ChequeOcrFormDto } from './dto/cheque-ocr-form.dto';
@@ -34,6 +36,8 @@ class PanOcrBodyDto {
 @Controller('ocr')
 @UseGuards(ApiKeyGuard)
 export class OcrController {
+  private readonly logger = new Logger(OcrController.name);
+
   constructor(private readonly ocrService: OcrService) {}
 
   /**
@@ -76,19 +80,23 @@ export class OcrController {
       throw new BadRequestException('Image file is required');
     }
 
-    // Validate file type
-    // const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
-    // if (!allowedMimeTypes.includes(file.mimetype)) {
-    //   throw new BadRequestException(  
-    //     `Invalid file type. Allowed: ${allowedMimeTypes.join(', ')}. Received: ${file.mimetype}`,
-    //   );
-    // }
+    const filePath = file?.path;
 
-    return this.ocrService.processCheque({
-      imageUrl: file,
-      clientRefId: body.clientRefId,
-      accountHolderName: body.accountHolderName,
-    });
+    try {
+      return await this.ocrService.processCheque({
+        imageUrl: file,
+        clientRefId: body.clientRefId,
+        accountHolderName: body.accountHolderName,
+      });
+    } finally {
+      if (filePath) {
+        try {
+          await fs.promises.unlink(filePath);
+        } catch (err) {
+          this.logger.warn(`Failed to delete uploaded file: ${filePath}`);
+        }
+      }
+    }
   }
 
   /**
@@ -136,6 +144,18 @@ export class OcrController {
       );
     }
 
-    return this.ocrService.ocrPan(file);
+    const filePath = file?.path;
+
+    try {
+      return await this.ocrService.ocrPan(file);
+    } finally {
+      if (filePath) {
+        try {
+          await fs.promises.unlink(filePath);
+        } catch (err) {
+          this.logger.warn(`Failed to delete uploaded file: ${filePath}`);
+        }
+      }
+    }
   }
 }

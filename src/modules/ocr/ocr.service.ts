@@ -49,6 +49,7 @@ export class OcrService {
       throw new BadRequestException("Valid image file is required");
     }
 
+    const filePath = imageUrl?.path;
 
     let imageBuffer: Buffer;
     if (imageUrl.buffer) {
@@ -302,6 +303,8 @@ export class OcrService {
 
   async ocrPan(file: MulterFile): Promise<any> {
     if (!file) throw new BadRequestException("PAN image file is required");
+
+    const filePath = file?.path;
 
     let imageBuffer: Buffer;
     try {
