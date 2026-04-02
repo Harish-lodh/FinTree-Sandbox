@@ -9,7 +9,7 @@ import { GoogleVisionService } from "./google-vision.service";
 import { ChequeOcrDto, ChequeOcrResponse } from "./dto/cheque-ocr.dto";
 import { PanOcrDto, PanOcrResponse } from "./dto/pan-ocr.dto";
 import { parsePanText } from "../../utils/pan-parser.util";
-
+import { v4 as uuidv4 } from "uuid";
 // Multer file type
 interface MulterFile {
   fieldname: string;
@@ -43,7 +43,7 @@ export class OcrService {
   /* ========================= CHEQUE OCR ========================= */
 
   async processCheque(dto: ChequeOcrDto): Promise<ChequeOcrResponse> {
-    const { imageUrl, clientRefId, accountHolderName } = dto;
+    const { imageUrl } = dto;
     console.log(imageUrl);
     if (!imageUrl || (!imageUrl.buffer && !imageUrl.path)) {
       throw new BadRequestException("Valid image file is required");
@@ -81,16 +81,11 @@ export class OcrService {
       ) {
         return await this.processChequeWithDigitap(
           imageBuffer,
-          {
-            clientRefId,
-            accountHolderName,
-            isCompleteImage: true,
-          },
           mimeType,
         );
       }
 
-      this.logger.warn("Digitap not configured, using Google Vision fallback");
+      this.logger.warn("Digitap Failed, using Google Vision fallback");
       return this.processChequeWithGoogleVision(imageBuffer);
     } catch (error: any) {
       this.logger.error("Cheque OCR failed", error?.message);
@@ -100,11 +95,6 @@ export class OcrService {
 
   private async processChequeWithDigitap(
     imageBuffer: Buffer,
-    options: {
-      clientRefId: string;
-      accountHolderName?: string;
-      isCompleteImage: boolean;
-    },
     imageMimeType: string,
   ): Promise<ChequeOcrResponse> {
     try {
@@ -122,18 +112,18 @@ export class OcrService {
       } else {
         formData.append('imageUrl', base64Image);
       }
+        const clientRefId =uuidv4(); // ✅ generated automatically
 
-      formData.append('clientRefId', options.clientRefId);
+      formData.append('clientRefId', clientRefId);
 
       // ✅ MUST be yes / no
       formData.append(
-        "isCompleteImage",
-        options.isCompleteImage ? "yes" : "no",
+        "isCompleteImage","yes"
       );
 
-      if (options.accountHolderName) {
-        formData.append("accountHolderName", options.accountHolderName);
-      }
+      // if (options.accountHolderName) {
+      //   formData.append("accountHolderName", options.accountHolderName);
+      // }
 
       const authString = Buffer.from(
         `${this.digitapClientId}:${this.digitapClientSecret}`,

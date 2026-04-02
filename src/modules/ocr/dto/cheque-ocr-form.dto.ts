@@ -10,14 +10,14 @@ export class ChequeOcrFormDto {
   @IsOptional()
   imageUrl?: any;
 
-  @ApiProperty({ 
-    example: 'CLT21',
-    description: 'Client reference ID for tracking the request',
-    required: true 
-  })
-  @IsString()
-  @IsNotEmpty({ message: 'Client reference ID is required' })
-  clientRefId: string;
+  // @ApiProperty({ 
+  //   example: 'CLT21',
+  //   description: 'Client reference ID for tracking the request',
+  //   required: true 
+  // })
+  // @IsString()
+  // @IsNotEmpty({ message: 'Client reference ID is required' })
+  // clientRefId: string;
 
   @ApiProperty({ 
     example: 'Sanu Kumar',

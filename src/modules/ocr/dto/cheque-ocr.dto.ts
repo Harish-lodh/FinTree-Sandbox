@@ -17,23 +17,23 @@ export class ChequeOcrDto {
   @IsNotEmpty({ message: 'Image file is required' })
   imageUrl: Express.Multer.File;
 
-  @ApiProperty({
-    type: String,
-    description: 'Client reference ID',
-    example: 'CLT-2024-001',
-  })
-  @IsString()
-  @IsNotEmpty({ message: 'Client reference ID is required' })
-  clientRefId: string;
+  // @ApiProperty({
+  //   type: String,
+  //   description: 'Client reference ID',
+  //   example: 'CLT-2024-001',
+  // })
+  // @IsString()
+  // @IsNotEmpty({ message: 'Client reference ID is required' })
+  // clientRefId: string;
 
-  @ApiProperty({
-    type: String,
-    description: 'Account holder name',
-    example: 'John Doe',
-  })
-  @IsString()
-  @IsNotEmpty({ message: 'Account holder name is required' })
-  accountHolderName: string;
+  // @ApiProperty({
+  //   type: String,
+  //   description: 'Account holder name',
+  //   example: 'John Doe',
+  // })
+  // @IsString()
+  // @IsNotEmpty({ message: 'Account holder name is required' })
+  // accountHolderName: string;
 
   // @ApiProperty({
   //   type: String,

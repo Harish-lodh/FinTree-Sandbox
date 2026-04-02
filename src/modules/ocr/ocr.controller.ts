@@ -57,11 +57,11 @@ export class OcrController {
       type: 'object',
       properties: {
         imageUrl: { type: 'string', format: 'binary', description: 'Cheque image file' },
-        clientRefId: { type: 'string', description: 'Client reference ID (required)' },
-        accountHolderName: { type: 'string', description: 'Account holder name (required)' },
+        // clientRefId: { type: 'string', description: 'Client reference ID (required)' },
+        // accountHolderName: { type: 'string', description: 'Account holder name (required)' },
         // isCompleteImage: { type: 'string', enum: ['yes', 'no'], description: 'Is complete image (required)' },
       },
-      required: ['imageUrl', 'clientRefId', 'accountHolderName'],
+      required: ['imageUrl'],
     },
     required: true,
   })
@@ -85,8 +85,6 @@ export class OcrController {
     try {
       return await this.ocrService.processCheque({
         imageUrl: file,
-        clientRefId: body.clientRefId,
-        accountHolderName: body.accountHolderName,
       });
     } finally {
       if (filePath) {
