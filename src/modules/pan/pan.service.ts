@@ -108,117 +108,235 @@ export class PanService {
   // ───────────────────────────────────────────────
   // Main unified verification method
   // ───────────────────────────────────────────────
+  // async validatePan(pan: string, name: string) {
+  //   if (!pan?.match(/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/i)) {
+  //     throw new BadRequestException('Invalid PAN format');
+  //   }
+  //   if (!name?.trim()) {
+  //     throw new BadRequestException('Name is required for PAN verification');
+  //   }
+
+  //   pan = pan.toUpperCase().trim();
+  //   name = name.trim();
+
+  //   this.logger.log(`Starting PAN verification → PAN: ${pan} | Name: "${name}"`);
+
+  //   // 1. Try Finanalyz first (as primary)
+  //   let finResult = null;
+  //   try {
+  //     finResult = await this.callFinanalyzPan(pan, name);
+  //   } catch {}
+
+  //   if (finResult?.success) {
+  //     const resp = finResult.response;
+  //     const apiResp = resp?.data?.response;
+
+  //     if (apiResp?.code === 200 && apiResp?.isValid === true) {
+  //       this.logger.log(`Finanalyz → VALID PAN`);
+  //       return {
+  //         success: true,
+  //         verified: true,
+  //         provider: 'FINANALYZ',
+  //         details: {
+  //           pan: apiResp.pan,
+  //           name: apiResp.name,
+  //           firstName: apiResp.firstName,
+  //           middleName: apiResp.middleName,
+  //           lastName: apiResp.lastName,
+  //           gender: apiResp.gender,
+  //           dob: apiResp.dob,
+  //           ...apiResp, // rest of fields
+  //           nameMatchScore: 100, // assumed
+  //         },
+  //       };
+  //     }
+
+  //     this.logger.warn(`Finanalyz → rejected: ${apiResp?.message || 'invalid response'}`);
+  //     return {
+  //       success: true,
+  //       verified: false,
+  //       provider: 'FINANALYZ',
+  //       message: apiResp?.message || 'PAN verification failed',
+  //     };
+  //   }
+
+  //   // 2. Fallback to Zoop
+  //   let zoopResult = null;
+  //   try {
+  //     zoopResult = await this.callZoopPan(pan, name);
+  //   } catch {}
+
+  //   if (zoopResult?.success) {
+  //     const resp = zoopResult.response;
+
+  //     if (resp?.response_code === '100' && resp?.result?.pan_status === 'VALID') {
+  //       const score = Number(resp.result.name_match_score || 0);
+
+  //       if (score >= 80) {
+  //         this.logger.log(`Zoop → VALID (name match: ${score}%)`);
+  //         return {
+  //           success: true,
+  //           verified: true,
+  //           provider: 'ZOOP',
+  //           details: {
+  //             pan: resp.result.pan_number,
+  //             name: resp.result.name_on_card,
+  //             firstName: resp.result.user_first_name,
+  //             middleName: resp.result.user_middle_name,
+  //             lastName: resp.result.user_last_name,
+  //             typeOfHolder: resp.result.pan_type,
+  //             aadhaarSeedingStatus: resp.result.aadhaar_seeding_status,
+  //             nameMatchScore: score,
+  //           },
+  //         };
+  //       }
+
+  //       this.logger.warn(`Zoop → name mismatch (score: ${score}%)`);
+  //       return {
+  //         success: true,
+  //         verified: false,
+  //         provider: 'ZOOP',
+  //         message: `Name match too low (${score}%)`,
+  //       };
+  //     }
+
+  //     this.logger.warn(`Zoop → rejected: code=${resp?.response_code} msg=${resp?.response_message}`);
+  //     return {
+  //       success: true,
+  //       verified: false,
+  //       provider: 'ZOOP',
+  //       message: resp?.response_message || 'PAN not valid',
+  //     };
+  //   }
+
+  //   // Both failed
+  //   this.logger.error(`PAN verification completely failed for ${pan}`);
+  //   return {
+  //     success: false,           // ← changed: false when really failed
+  //     verified: false,
+  //     provider: 'NONE',
+  //     message: 'Both verification providers failed (check logs for details)',
+  //   };
+  // }
+
   async validatePan(pan: string, name: string) {
-    if (!pan?.match(/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/i)) {
-      throw new BadRequestException('Invalid PAN format');
-    }
-    if (!name?.trim()) {
-      throw new BadRequestException('Name is required for PAN verification');
-    }
+  if (!pan?.match(/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/i)) {
+    throw new BadRequestException('Invalid PAN format');
+  }
 
-    pan = pan.toUpperCase().trim();
-    name = name.trim();
+  if (!name?.trim()) {
+    throw new BadRequestException('Name is required for PAN verification');
+  }
 
-    this.logger.log(`Starting PAN verification → PAN: ${pan} | Name: "${name}"`);
+  pan = pan.toUpperCase().trim();
+  name = name.trim();
 
-    // 1. Try Finanalyz first (as primary)
-    let finResult = null;
-    try {
-      finResult = await this.callFinanalyzPan(pan, name);
-    } catch {}
+  this.logger.log(`Starting PAN verification → PAN: ${pan} | Name: "${name}"`);
 
-    if (finResult?.success) {
-      const resp = finResult.response;
-      const apiResp = resp?.data?.response;
+  // 1. Try Zoop first as primary
+  let zoopResult = null;
 
-      if (apiResp?.code === 200 && apiResp?.isValid === true) {
-        this.logger.log(`Finanalyz → VALID PAN`);
+  try {
+    zoopResult = await this.callZoopPan(pan, name);
+  } catch (error) {
+    this.logger.warn(`Zoop → provider failed, trying Finanalyz fallback`);
+  }
+
+  if (zoopResult?.success) {
+    const resp = zoopResult.response;
+
+    if (resp?.response_code === '100' && resp?.result?.pan_status === 'VALID') {
+      const score = Number(resp.result.name_match_score || 0);
+
+    
+        this.logger.log(`Zoop → VALID (name match: ${score}%)`);
+
         return {
           success: true,
           verified: true,
-          provider: 'FINANALYZ',
+          provider: 'ZOOP',
           details: {
-            pan: apiResp.pan,
-            name: apiResp.name,
-            firstName: apiResp.firstName,
-            middleName: apiResp.middleName,
-            lastName: apiResp.lastName,
-            gender: apiResp.gender,
-            dob: apiResp.dob,
-            ...apiResp, // rest of fields
-            nameMatchScore: 100, // assumed
+            pan: resp.result.pan_number,
+            name: resp.result.name_on_card,
+            firstName: resp.result.user_first_name,
+            middleName: resp.result.user_middle_name,
+            lastName: resp.result.user_last_name,
+            typeOfHolder: resp.result.pan_type,
+            aadhaarSeedingStatus: resp.result.aadhaar_seeding_status,
+            nameMatchScore: score,
           },
         };
-      }
 
-      this.logger.warn(`Finanalyz → rejected: ${apiResp?.message || 'invalid response'}`);
-      return {
-        success: true,
-        verified: false,
-        provider: 'FINANALYZ',
-        message: apiResp?.message || 'PAN verification failed',
-      };
     }
 
-    // 2. Fallback to Zoop
-    let zoopResult = null;
-    try {
-      zoopResult = await this.callZoopPan(pan, name);
-    } catch {}
+    this.logger.warn(
+      `Zoop → rejected: code=${resp?.response_code} msg=${resp?.response_message}`,
+    );
 
-    if (zoopResult?.success) {
-      const resp = zoopResult.response;
-
-      if (resp?.response_code === '100' && resp?.result?.pan_status === 'VALID') {
-        const score = Number(resp.result.name_match_score || 0);
-
-        if (score >= 80) {
-          this.logger.log(`Zoop → VALID (name match: ${score}%)`);
-          return {
-            success: true,
-            verified: true,
-            provider: 'ZOOP',
-            details: {
-              pan: resp.result.pan_number,
-              name: resp.result.name_on_card,
-              firstName: resp.result.user_first_name,
-              middleName: resp.result.user_middle_name,
-              lastName: resp.result.user_last_name,
-              typeOfHolder: resp.result.pan_type,
-              aadhaarSeedingStatus: resp.result.aadhaar_seeding_status,
-              nameMatchScore: score,
-            },
-          };
-        }
-
-        this.logger.warn(`Zoop → name mismatch (score: ${score}%)`);
-        return {
-          success: true,
-          verified: false,
-          provider: 'ZOOP',
-          message: `Name match too low (${score}%)`,
-        };
-      }
-
-      this.logger.warn(`Zoop → rejected: code=${resp?.response_code} msg=${resp?.response_message}`);
-      return {
-        success: true,
-        verified: false,
-        provider: 'ZOOP',
-        message: resp?.response_message || 'PAN not valid',
-      };
-    }
-
-    // Both failed
-    this.logger.error(`PAN verification completely failed for ${pan}`);
     return {
-      success: false,           // ← changed: false when really failed
+      success: true,
       verified: false,
-      provider: 'NONE',
-      message: 'Both verification providers failed (check logs for details)',
+      provider: 'ZOOP',
+      message: resp?.response_message || 'PAN not valid',
     };
   }
 
+  // 2. Fallback to Finanalyz
+  let finResult = null;
+
+  try {
+    finResult = await this.callFinanalyzPan(pan, name);
+  } catch (error) {
+    this.logger.warn(`Finanalyz → provider failed`);
+  }
+
+  if (finResult?.success) {
+    const resp = finResult.response;
+    const apiResp = resp?.data?.response;
+
+    if (apiResp?.code === 200 && apiResp?.isValid === true) {
+      this.logger.log(`Finanalyz → VALID PAN`);
+
+      return {
+        success: true,
+        verified: true,
+        provider: 'FINANALYZ',
+        details: {
+          pan: apiResp.pan,
+          name: apiResp.name,
+          firstName: apiResp.firstName,
+          middleName: apiResp.middleName,
+          lastName: apiResp.lastName,
+          gender: apiResp.gender,
+          dob: apiResp.dob,
+          ...apiResp,
+          nameMatchScore: 100,
+        },
+      };
+    }
+
+    this.logger.warn(
+      `Finanalyz → rejected: ${apiResp?.message || 'invalid response'}`,
+    );
+
+    return {
+      success: true,
+      verified: false,
+      provider: 'FINANALYZ',
+      message: apiResp?.message || 'PAN verification failed',
+    };
+  }
+
+  // Both provider calls failed
+  this.logger.error(`PAN verification completely failed for ${pan}`);
+
+  return {
+    success: false,
+    verified: false,
+    provider: 'NONE',
+    message: 'Both verification providers failed (check logs for details)',
+  };
+}
   // Legacy compatibility
   async verifyPan(panNumber: string, name?: string) {
     if (!name) throw new BadRequestException('Name is required');
