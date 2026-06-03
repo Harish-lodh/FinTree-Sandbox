@@ -292,9 +292,10 @@ export class OcrService {
   /* ========================= PAN OCR WITH FALLBACK ========================= */
 
   async ocrPan(file: MulterFile): Promise<any> {
-    if (!file) throw new BadRequestException("PAN image file is required");
+    if (!file) throw new BadRequestException("PAN image or PDF file is required");
 
     const filePath = file?.path;
+    const isPdf = file.mimetype === "application/pdf";
 
     let imageBuffer: Buffer;
     try {
@@ -304,8 +305,8 @@ export class OcrService {
 
       if (!imageBuffer) throw new Error("No buffer or path available");
     } catch (e) {
-      this.logger.error(`Failed to read PAN image: ${e.message}`);
-      throw new BadRequestException("Invalid or unreadable PAN image");
+      this.logger.error(`Failed to read PAN file: ${e.message}`);
+      throw new BadRequestException("Invalid or unreadable PAN file");
     }
 
     this.logger.debug(
@@ -364,11 +365,14 @@ export class OcrService {
 
     /* ───────────── Google Vision OCR (FALLBACK) ───────────── */
 
-    this.logger.log("Falling back to Google Vision OCR...");
+    this.logger.log(
+      `Falling back to Google Vision OCR${isPdf ? " for PDF" : ""}...`,
+    );
 
     try {
-      const lines =
-        await this.googleVisionService.extractTextFromImage(imageBuffer);
+      const lines = isPdf
+        ? await this.googleVisionService.extractTextFromPdf(imageBuffer)
+        : await this.googleVisionService.extractTextFromImage(imageBuffer);
 
       const fullText = lines.join("\n").trim();
       const isPaymentDoc = /payment|payments|paytm|upi/i.test(fullText);
@@ -400,7 +404,7 @@ export class OcrService {
     return {
       provider: "NONE",
       success: false,
-      message: "PAN could not be extracted from image",
+      message: "PAN could not be extracted from file",
       data: {
         pan_number: "",
         name: "",

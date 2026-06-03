@@ -106,14 +106,14 @@ export class OcrController {
   @ApiOperation({
     summary: 'Process PAN Card OCR',
     description:
-      'Extracts information from PAN card images using OCR. Accepts multipart/form-data with image file.',
+      'Extracts information from PAN card images or PDFs using OCR. Accepts multipart/form-data with file upload.',
   })
   @ApiBody({
     description: 'PAN OCR request payload',
     schema: {
       type: 'object',
       properties: {
-        imageUrl: { type: 'string', format: 'binary', description: 'PAN card image file' },
+        imageUrl: { type: 'string', format: 'binary', description: 'PAN card image or PDF file' },
         clientRefId: { type: 'string', description: 'Client reference ID for tracking (optional)' },
       },
       required: ['imageUrl'],
@@ -131,11 +131,11 @@ export class OcrController {
     @Body() body: any,
   ): Promise<any> {
     if (!file) {
-      throw new BadRequestException('Image file is required');
+      throw new BadRequestException('PAN image or PDF file is required');
     }
 
     // Validate file type
-    const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+    const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp', 'application/pdf'];
     if (!allowedMimeTypes.includes(file.mimetype)) {
       throw new BadRequestException(
         `Invalid file type. Allowed: ${allowedMimeTypes.join(', ')}. Received: ${file.mimetype}`,

@@ -11,10 +11,10 @@ export class PanOcrDto {
   @ApiProperty({
     type: 'string',
     format: 'binary',
-    description: 'PAN card image file',
+    description: 'PAN card image or PDF file',
     required: true,
   })
-  @IsNotEmpty({ message: 'Image file is required' })
+  @IsNotEmpty({ message: 'PAN image or PDF file is required' })
   imageUrl: Express.Multer.File;
 
   @ApiPropertyOptional({
