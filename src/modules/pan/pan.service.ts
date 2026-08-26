@@ -219,7 +219,7 @@ export class PanService {
   //   };
   // }
 
-  async validatePan(pan: string, name: string) {
+async validatePan(pan: string, name: string) {
   if (!pan?.match(/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/i)) {
     throw new BadRequestException('Invalid PAN format');
   }
@@ -231,63 +231,19 @@ export class PanService {
   pan = pan.toUpperCase().trim();
   name = name.trim();
 
-  this.logger.log(`Starting PAN verification → PAN: ${pan} | Name: "${name}"`);
+  this.logger.log(
+    `Starting PAN verification → PAN: ${pan} | Name: "${name}"`,
+  );
 
-  // 1. Try Zoop first as primary
-  let zoopResult = null;
-
-  try {
-    zoopResult = await this.callZoopPan(pan, name);
-  } catch (error) {
-    this.logger.warn(`Zoop → provider failed, trying Finanalyz fallback`);
-  }
-
-  if (zoopResult?.success) {
-    const resp = zoopResult.response;
-
-    if (resp?.response_code === '100' && resp?.result?.pan_status === 'VALID') {
-      const score = Number(resp.result.name_match_score || 0);
-
-    
-        this.logger.log(`Zoop → VALID (name match: ${score}%)`);
-
-        return {
-          success: true,
-          verified: true,
-          provider: 'ZOOP',
-          details: {
-            pan: resp.result.pan_number,
-            name: resp.result.name_on_card,
-            firstName: resp.result.user_first_name,
-            middleName: resp.result.user_middle_name,
-            lastName: resp.result.user_last_name,
-            typeOfHolder: resp.result.pan_type,
-            aadhaarSeedingStatus: resp.result.aadhaar_seeding_status,
-            nameMatchScore: score,
-          },
-        };
-
-    }
-
-    this.logger.warn(
-      `Zoop → rejected: code=${resp?.response_code} msg=${resp?.response_message}`,
-    );
-
-    return {
-      success: true,
-      verified: false,
-      provider: 'ZOOP',
-      message: resp?.response_message || 'PAN not valid',
-    };
-  }
-
-  // 2. Fallback to Finanalyz
+  // 1. Try Finanalyz first as primary
   let finResult = null;
 
   try {
     finResult = await this.callFinanalyzPan(pan, name);
   } catch (error) {
-    this.logger.warn(`Finanalyz → provider failed`);
+    this.logger.warn(
+      `Finanalyz → provider failed, trying Zoop fallback`,
+    );
   }
 
   if (finResult?.success) {
@@ -324,6 +280,55 @@ export class PanService {
       verified: false,
       provider: 'FINANALYZ',
       message: apiResp?.message || 'PAN verification failed',
+    };
+  }
+
+  // 2. Fallback to Zoop
+  let zoopResult = null;
+
+  try {
+    zoopResult = await this.callZoopPan(pan, name);
+  } catch (error) {
+    this.logger.warn(`Zoop → provider failed`);
+  }
+
+  if (zoopResult?.success) {
+    const resp = zoopResult.response;
+
+    if (
+      resp?.response_code === '100' &&
+      resp?.result?.pan_status === 'VALID'
+    ) {
+      const score = Number(resp.result.name_match_score || 0);
+
+      this.logger.log(`Zoop → VALID (name match: ${score}%)`);
+
+      return {
+        success: true,
+        verified: true,
+        provider: 'ZOOP',
+        details: {
+          pan: resp.result.pan_number,
+          name: resp.result.name_on_card,
+          firstName: resp.result.user_first_name,
+          middleName: resp.result.user_middle_name,
+          lastName: resp.result.user_last_name,
+          typeOfHolder: resp.result.pan_type,
+          aadhaarSeedingStatus: resp.result.aadhaar_seeding_status,
+          nameMatchScore: score,
+        },
+      };
+    }
+
+    this.logger.warn(
+      `Zoop → rejected: code=${resp?.response_code} msg=${resp?.response_message}`,
+    );
+
+    return {
+      success: true,
+      verified: false,
+      provider: 'ZOOP',
+      message: resp?.response_message || 'PAN not valid',
     };
   }
 
