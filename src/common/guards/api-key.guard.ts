@@ -5,6 +5,8 @@ import {
   UnauthorizedException,
   Logger,
 } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+import { createHmac, timingSafeEqual } from 'crypto';
 
 /**
  * ApiKeyGuard - A clean, production-ready guard for X-API-Key authentication.
@@ -24,9 +26,35 @@ import {
 export class ApiKeyGuard implements CanActivate {
   private readonly logger = new Logger(ApiKeyGuard.name);
 
+  constructor(private readonly reflector: Reflector) {}
+
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest();
     const apiKey = request.headers['x-api-key'];
+
+    const allowTrackwizzReportOpen =
+      this.reflector.getAllAndOverride<boolean>('allowTrackwizzReportOpen', [
+        context.getHandler(),
+        context.getClass(),
+      ]) ||
+      this.reflector.getAllAndOverride<boolean>('allowTrackwizzReportToken', [
+        context.getHandler(),
+        context.getClass(),
+      ]);
+
+    if (
+      allowTrackwizzReportOpen &&
+      (this.isPublicTrackwizzReportRequest(request) ||
+        this.isValidTrackwizzReportToken(request))
+    ) {
+      request.user = {
+        authType: 'trackwizz-report-open',
+        id: 'trackwizz-report-open',
+      };
+
+      return true;
+    }
+
     // Check if API key is present
     if (!apiKey) {
       this.logger.warn('Authentication failed: No X-API-Key header provided');
@@ -43,5 +71,43 @@ export class ApiKeyGuard implements CanActivate {
     };
 
     return true;
+  }
+
+  private isValidTrackwizzReportToken(request: any): boolean {
+    const token = Array.isArray(request.query?.token)
+      ? request.query.token[0]
+      : request.query?.token;
+    const requestId = request.params?.requestId;
+    const secret =
+      process.env.TW_REPORT_TOKEN_SECRET ||
+      process.env.TRACKWIZZ_REPORT_TOKEN_SECRET ||
+      process.env.API_KEY ||
+      '';
+
+    if (!token || !requestId || !secret) {
+      return false;
+    }
+
+    const [expiresAtText, signature] = String(token).split('.');
+    const expiresAt = Number(expiresAtText);
+
+    if (!Number.isFinite(expiresAt) || Date.now() > expiresAt || !signature) {
+      return false;
+    }
+
+    const expectedSignature = createHmac('sha256', secret)
+      .update(`${requestId}.${expiresAt}`)
+      .digest('base64url');
+    const expectedBuffer = Buffer.from(expectedSignature);
+    const actualBuffer = Buffer.from(signature);
+
+    return (
+      expectedBuffer.length === actualBuffer.length &&
+      timingSafeEqual(expectedBuffer, actualBuffer)
+    );
+  }
+
+  private isPublicTrackwizzReportRequest(request: any): boolean {
+    return request.method === 'GET' && !!request.params?.requestId;
   }
 }

@@ -14,6 +14,7 @@ import { EsignModule } from './modules/esign/esign.module';
 import { HealthModule } from './modules/health/health.module';
 import { OcrModule } from './modules/ocr/ocr.module';
 import { GstModule } from './modules/gst/gst.module';
+import { AmlModule } from './modules/aml/aml.module';
 import { ApiKeyGuard } from './common/guards/api-key.guard';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 
@@ -51,6 +52,7 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
     HealthModule,
     OcrModule,
     GstModule,
+    AmlModule,
   ],
   controllers: [AppController],
   providers: [

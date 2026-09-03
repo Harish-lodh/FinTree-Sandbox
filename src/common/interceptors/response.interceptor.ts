@@ -5,6 +5,7 @@ import {
   CallHandler,
   Logger,
 } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { Observable } from 'rxjs';
 import { map, tap } from 'rxjs/operators';
 import { ApiTransactionLogsService } from '../../modules/api-transaction-logs/api-transaction-logs.service';
@@ -20,9 +21,21 @@ export interface Response<T> {
 export class ResponseInterceptor<T> implements NestInterceptor<T, Response<T>> {
   private readonly logger = new Logger(ResponseInterceptor.name);
 
-  constructor(private readonly apiTransactionLogsService: ApiTransactionLogsService) {}
+  constructor(
+    private readonly apiTransactionLogsService: ApiTransactionLogsService,
+    private readonly reflector: Reflector,
+  ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<Response<T>> {
+    const skipResponseWrap = this.reflector.getAllAndOverride<boolean>(
+      'skipResponseWrap',
+      [context.getHandler(), context.getClass()],
+    );
+
+    if (skipResponseWrap) {
+      return next.handle();
+    }
+
     const request = context.switchToHttp().getRequest();
     const response = context.switchToHttp().getResponse();
     const startTime = Date.now();
@@ -72,7 +85,7 @@ export class ResponseInterceptor<T> implements NestInterceptor<T, Response<T>> {
             service,
             endpoint,
             requestPayload: JSON.stringify({ method, url, body, query }),
-            responseData: JSON.stringify(data),
+            responseData: JSON.stringify(this.sanitizeForLogging(data)),
             status: data.success ? 'success' : 'error',
             durationMs,
           });
@@ -95,5 +108,30 @@ export class ResponseInterceptor<T> implements NestInterceptor<T, Response<T>> {
   private extractEndpointFromUrl(url: string): string {
     const parts = url.split('/').filter(Boolean);
     return parts.slice(1).join('/') || 'unknown';
+  }
+
+  private sanitizeForLogging(value: any): any {
+    if (Array.isArray(value)) {
+      return value.map((item) => this.sanitizeForLogging(item));
+    }
+
+    if (!value || typeof value !== 'object') {
+      return value;
+    }
+
+    return Object.entries(value).reduce((result, [key, entry]) => {
+      if (/reportdata/i.test(key)) {
+        result[key] = '[PDF_STORED_SEPARATELY]';
+        return result;
+      }
+
+      if (/hitresponse|hitresponses/i.test(key)) {
+        result[key] = '[HITS_STORED_SEPARATELY]';
+        return result;
+      }
+
+      result[key] = this.sanitizeForLogging(entry);
+      return result;
+    }, {});
   }
 }

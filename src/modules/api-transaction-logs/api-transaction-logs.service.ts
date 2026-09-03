@@ -56,6 +56,23 @@ export class ApiTransactionLogsService {
     });
   }
 
+  async findLatestByServiceEndpointAndCallerId(
+    service: string,
+    endpoint: string,
+    callerId: string,
+    status?: 'success' | 'error' | 'pending',
+  ): Promise<ApiTransactionLog | null> {
+    return this.apiTransactionLogRepository.findOne({
+      where: {
+        service,
+        endpoint,
+        callerId,
+        ...(status ? { status } : {}),
+      },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
   async findOne(id: number): Promise<ApiTransactionLog | null> {
     return this.apiTransactionLogRepository.findOne({ where: { id } });
   }
