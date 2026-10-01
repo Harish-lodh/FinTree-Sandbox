@@ -237,10 +237,14 @@ async validatePan(pan: string, name: string) {
 
   // 1. Try Finanalyz first as primary
   let finResult = null;
+  let finanalyzFailureMessage: string | null = null;
 
   try {
     finResult = await this.callFinanalyzPan(pan, name);
   } catch (error) {
+    finanalyzFailureMessage =
+      error?.message || 'Finanalyz provider failed';
+
     this.logger.warn(
       `Finanalyz → provider failed, trying Zoop fallback`,
     );
@@ -248,7 +252,7 @@ async validatePan(pan: string, name: string) {
 
   if (finResult?.success) {
     const resp = finResult.response;
-    const apiResp = resp?.data?.response;
+    const apiResp = resp?.data?.response ?? resp?.data ?? resp;
 
     if (apiResp?.code === 200 && apiResp?.isValid === true) {
       this.logger.log(`Finanalyz → VALID PAN`);
@@ -275,12 +279,11 @@ async validatePan(pan: string, name: string) {
       `Finanalyz → rejected: ${apiResp?.message || 'invalid response'}`,
     );
 
-    return {
-      success: true,
-      verified: false,
-      provider: 'FINANALYZ',
-      message: apiResp?.message || 'PAN verification failed',
-    };
+    finanalyzFailureMessage =
+      apiResp?.message || resp?.message || 'PAN verification failed';
+  } else if (finResult) {
+    finanalyzFailureMessage =
+      finResult.error || 'Finanalyz provider failed';
   }
 
   // 2. Fallback to Zoop
@@ -329,6 +332,22 @@ async validatePan(pan: string, name: string) {
       verified: false,
       provider: 'ZOOP',
       message: resp?.response_message || 'PAN not valid',
+    };
+  }
+
+  if (finanalyzFailureMessage) {
+    this.logger.error(
+      `PAN verification failed in Finanalyz and Zoop fallback failed for ${pan}`,
+    );
+
+    return {
+      success: true,
+      verified: false,
+      provider: 'FINANALYZ',
+      message: finanalyzFailureMessage,
+      fallbackProvider: 'ZOOP',
+      fallbackAttempted: true,
+      fallbackMessage: zoopResult?.error || 'Zoop fallback failed',
     };
   }
 
